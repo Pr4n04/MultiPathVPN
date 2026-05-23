@@ -185,19 +185,6 @@ class PacketForwarder(
     }
 
     // ──────────────────────────────────────────────
-    // Utilities
-    // ──────────────────────────────────────────────
-
-    companion object {
-        fun inet4FromBytes(buf: ByteBuffer, offset: Int): String {
-            return "${buf.get(offset).toInt() and 0xFF}." +
-                    "${buf.get(offset + 1).toInt() and 0xFF}." +
-                    "${buf.get(offset + 2).toInt() and 0xFF}." +
-                    "${buf.get(offset + 3).toInt() and 0xFF}"
-        }
-    }
-
-    // ──────────────────────────────────────────────
     // TCP Relay Inner Class
     // ──────────────────────────────────────────────
 
@@ -377,6 +364,13 @@ class PacketForwarder(
     // ──────────────────────────────────────────────
 
     companion object PacketBuilder {
+        fun inet4FromBytes(buf: ByteBuffer, offset: Int): String {
+            return "${buf.get(offset).toInt() and 0xFF}." +
+                    "${buf.get(offset + 1).toInt() and 0xFF}." +
+                    "${buf.get(offset + 2).toInt() and 0xFF}." +
+                    "${buf.get(offset + 3).toInt() and 0xFF}"
+        }
+
         /**
          * Build a minimal IPv4 + TCP/UDP response packet to write to the TUN interface.
          * This creates a response packet from the destination back to the original source.

@@ -121,9 +121,6 @@ class MultiPathVpnService : VpnService() {
         // Route ALL traffic through the VPN
         builder.addRoute("0.0.0.0", 0)
 
-        // Allow all apps (we filter internally)
-        builder.setAllowFamily(android.system.OsConstants.AF_INET)
-
         // Establish the VPN interface
         tunInterface = builder.establish() ?: run {
             onStatusChanged?.invoke("ERROR: Failed to establish VPN interface")
@@ -325,8 +322,8 @@ class MultiPathVpnService : VpnService() {
         if (!isRunning.get()) return "Stopped"
         return buildString {
             appendLine("MultiPath VPN is running")
-            appendLine("WiFi: ${if (networkMonitor.isWifiConnected) "✓" else "✗"}")
-            appendLine("Cellular: ${if (networkMonitor.isCellularConnected) "✓" else "✗"}")
+            appendLine("WiFi: ${if (networkMonitor.isWifiConnected.get()) "✓" else "✗"}")
+            appendLine("Cellular: ${if (networkMonitor.isCellularConnected.get()) "✓" else "✗"}")
             appendLine("Active connections: ${connectionTable.size()}")
             append("Strategy: ${networkMonitor.strategyLabel}")
         }
