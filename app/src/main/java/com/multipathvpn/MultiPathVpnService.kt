@@ -103,44 +103,55 @@ class MultiPathVpnService : VpnService() {
     // ──────────────────────────────────────────────
 
     private fun startVpn() {
-        if (isRunning.get()) return
+        try {
+            if (isRunning.get()) return
 
-        val builder = Builder()
+            val builder = Builder()
 
-        // Configure the VPN interface
-        builder.setSession(VPN_SESSION_NAME)
-        builder.setMtu(VPN_MTU)
-        builder.setBlocking(true)
+            // Configure the VPN interface
+            builder.setSession(VPN_SESSION_NAME)
+            builder.setMtu(VPN_MTU)
+            builder.setBlocking(true)
 
-        // Add virtual address
-        builder.addAddress(VPN_IP, VPN_NETMASK)
+            // Add virtual address
+            builder.addAddress(VPN_IP, VPN_NETMASK)
 
-        // Add DNS servers
-        DNS_SERVERS.forEach { builder.addDnsServer(it) }
+            // Add DNS servers
+            DNS_SERVERS.forEach { builder.addDnsServer(it) }
 
-        // Route ALL traffic through the VPN
-        builder.addRoute("0.0.0.0", 0)
+            // Route ALL traffic through the VPN
+            builder.addRoute("0.0.0.0", 0)
 
-        // Establish the VPN interface
-        tunInterface = builder.establish() ?: run {
-            onStatusChanged?.invoke("ERROR: Failed to establish VPN interface")
-            return
+            // Establish the VPN interface
+            tunInterface = builder.establish() ?: run {
+                onStatusChanged?.invoke("ERROR: Failed to establish VPN interface")
+                return
+            }
+
+            isRunning.set(true)
+            onStatusChanged?.invoke("VPN interface established ✓")
+
+            // Start foreground service notification
+            startForeground(FOREGROUND_NOTIFICATION_ID, createNotification())
+
+            // Start monitoring networks
+            networkMonitor.startMonitoring()
+
+            // Start the main packet forwarding loop
+            startPacketLoop()
+
+            onStatusChanged?.invoke("MultiPath VPN is RUNNING")
+            onStatusChanged?.invoke("WiFi: ${networkMonitor.isWifiConnected.get()} | Cellular: ${networkMonitor.isCellularConnected.get()}")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onStatusChanged?.invoke("ERROR: ${e.message ?: "Unknown error"}")
+            // Clean up if we partially started
+            if (isRunning.get()) {
+                stopVpn()
+            }
+            tunInterface?.close()
+            tunInterface = null
         }
-
-        isRunning.set(true)
-        onStatusChanged?.invoke("VPN interface established ✓")
-
-        // Start foreground service notification
-        startForeground(FOREGROUND_NOTIFICATION_ID, createNotification())
-
-        // Start monitoring networks
-        networkMonitor.startMonitoring()
-
-        // Start the main packet forwarding loop
-        startPacketLoop()
-
-        onStatusChanged?.invoke("MultiPath VPN is RUNNING")
-        onStatusChanged?.invoke("WiFi: ${networkMonitor.isWifiConnected} | Cellular: ${networkMonitor.isCellularConnected}")
     }
 
     private fun stopVpn() {
@@ -165,9 +176,10 @@ class MultiPathVpnService : VpnService() {
     // ──────────────────────────────────────────────
 
     private fun startPacketLoop() {
-        vpnThread = scope.launch {
-            val input = FileInputStream(tunInterface!!.fileDescriptor)
-            val output = FileOutputStream(tunInterface!!.fileDescriptor)
+        vpnThread = scope.launch(Dispatchers.IO) {
+            val tunFd = tunInterface?.fileDescriptor ?: return@launch
+            val input = FileInputStream(tunFd)
+            val output = FileOutputStream(tunFd)
             val buffer = ByteArray(VPN_MTU)
 
             try {
@@ -180,24 +192,23 @@ class MultiPathVpnService : VpnService() {
 
                     if (length <= 0) break
 
-                    // Copy the packet data
                     val packetData = buffer.copyOf(length)
                     val byteBuf = ByteBuffer.wrap(packetData)
-
-                    // Parse IP header to determine protocol
                     val version = (byteBuf.get(0).toInt() shr 4) and 0x0F
 
                     if (version == 4) {
                         handleIPv4Packet(byteBuf, output)
                     }
-                    // IPv6 not yet supported in this version
                 }
             } catch (e: Exception) {
                 if (isRunning.get()) {
+                    e.printStackTrace()
                     onStatusChanged?.invoke("Packet loop error: ${e.message}")
                 }
             } finally {
-                stopVpn()
+                if (isRunning.get()) {
+                    stopVpn()
+                }
             }
         }
     }
