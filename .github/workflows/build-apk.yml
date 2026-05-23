@@ -42,18 +42,32 @@ jobs:
             "platforms;android-34" \
             "build-tools;34.0.0" \
             "platform-tools" \
-            "emulator" \
             --sdk_root=$ANDROID_HOME
 
       - name: Create local.properties
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "local.properties created"
 
       - name: Build debug APK
+        id: build
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle-output.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload Build Log (always)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Build-Log
+          path: gradle-output.txt
+
+      - name: Show Gradle Error Summary
+        if: failure()
+        run: |
+          echo "=== Last 100 lines of Gradle output ==="
+          tail -100 gradle-output.txt
+          echo "=== End of output ==="
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
