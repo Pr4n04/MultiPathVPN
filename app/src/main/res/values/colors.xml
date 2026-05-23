@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="switch_thumb">#e94560</color>
+    <color name="switch_track">#533483</color>
+</resources>

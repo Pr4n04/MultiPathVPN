@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#1a1a2e">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <!-- App Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MultiPath VPN"
+            android:textSize="28sp"
+            android:textColor="#e94560"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Combine WiFi + Cellular seamlessly"
+            android:textSize="14sp"
+            android:textColor="#a0a0b0"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Status Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#16213e"
+            app:cardElevation="4dp"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:id="@+id/status_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="MultiPath VPN is stopped\nTap START to begin"
+                    android:textColor="#ffffff"
+                    android:textSize="16sp"
+                    android:lineSpacingExtra="4dp" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Network Status Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#16213e"
+            app:cardElevation="4dp"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Network Status"
+                    android:textColor="#e94560"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <TextView
+                    android:id="@+id/wifi_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="WiFi: Checking..."
+                    android:textColor="#ffffff"
+                    android:textSize="15sp"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/cellular_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Cellular: Checking..."
+                    android:textColor="#ffffff"
+                    android:textSize="15sp"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/connection_count"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Status: Ready"
+                    android:textColor="#a0a0b0"
+                    android:textSize="14sp" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Strategy Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="#16213e"
+            app:cardElevation="4dp"
+            app:cardCornerRadius="12dp"
+            android:layout_marginBottom="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Routing Strategy"
+                    android:textColor="#e94560"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/strategy_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Round Robin Mode"
+                    android:textColor="#ffffff"
+                    app:thumbTint="@color/switch_thumb"
+                    app:trackTint="@color/switch_track" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="ON: Alternate between networks\nOFF: Prefer WiFi"
+                    android:textColor="#a0a0b0"
+                    android:textSize="12sp"
+                    android:layout_marginTop="8dp" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Start/Stop Button -->
+        <Button
+            android:id="@+id/start_stop_button"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="START VPN"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:backgroundTint="#e94560"
+            app:cornerRadius="28dp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Info Text -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MultiPath VPN combines your WiFi and Cellular connections for seamless internet. When one network drops, traffic instantly switches to the other — no cutouts for messages, music, or browsing."
+            android:textColor="#606080"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:lineSpacingExtra="3dp" />
+
+    </LinearLayout>
+
+</ScrollView>
