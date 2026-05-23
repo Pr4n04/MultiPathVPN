@@ -117,14 +117,7 @@ class NetworkMonitor(private val context: Context) {
     // ──────────────────────────────────────────────
 
     private fun updateCurrentNetworkState() {
-        // Update WiFi state
-        val wifi = connectivityManager.getNetworkInfo(
-            connectivityManager.getNetworkCapabilities(
-                connectivityManager.activeNetwork
-            )?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-        )
-
-        // Better approach: iterate all networks
+        // Iterate all available networks and track their state
         for (network in connectivityManager.allNetworks) {
             val caps = connectivityManager.getNetworkCapabilities(network) ?: continue
             trackNetwork(network, caps)
@@ -233,7 +226,7 @@ class NetworkMonitor(private val context: Context) {
             if (info != null) {
                 // RSSI is typically in the range -100 to -55
                 val rssi = info.rssi
-                if (rssi == WifiManager.INVALID_RSSI) return@let -1
+                if (rssi == Int.MIN_VALUE || rssi == -127) return@let -1
                 // Scale -100..-55 → 0..100
                 ((rssi + 100) * 100 / 45).coerceIn(0, 100)
             } else -1
