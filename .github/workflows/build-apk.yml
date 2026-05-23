@@ -3,13 +3,11 @@ name: Build MultiPath VPN APK
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout code
@@ -21,27 +19,41 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Verify setup
+      - name: Install Android SDK
         run: |
-          echo "Java version:"
-          java -version
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          echo "SDK dir contents:"
-          ls -la $ANDROID_HOME/ || echo "No ANDROID_HOME"
-          echo "Gradle wrapper jar:"
-          ls -la gradle/wrapper/
-          echo "gradlew permissions:"
-          ls -la gradlew
+          # Download command-line tools
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd /tmp
+          curl -sL -o cmdline-tools.zip \
+            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+          unzip -q cmdline-tools.zip
+          mv cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          
+          # Set env vars
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+
+      - name: Accept Licenses & Install SDK Components
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "platform-tools" \
+            "emulator" \
+            --sdk_root=$ANDROID_HOME
+
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "local.properties created"
 
       - name: Build debug APK
         run: |
           chmod +x gradlew
-          export GRADLE_OPTS="-Dorg.gradle.daemon=false"
-          ./gradlew assembleDebug --stacktrace 2>&1
-        shell: bash
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
