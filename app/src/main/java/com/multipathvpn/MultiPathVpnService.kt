@@ -46,6 +46,10 @@ class MultiPathVpnService : VpnService() {
         const val VPN_MTU = 1500
         const val VPN_SESSION_NAME = "MultiPath VPN"
 
+        // Static flag so MainActivity can check service state safely
+        @Volatile
+        var isVpnActive = false
+
         // DNS servers to push to VPN clients
         val DNS_SERVERS = listOf(
             InetAddress.getByName("1.1.1.1"),
@@ -129,6 +133,7 @@ class MultiPathVpnService : VpnService() {
             }
 
             isRunning.set(true)
+            isVpnActive = true
             onStatusChanged?.invoke("VPN interface established ✓")
 
             // Start foreground service notification
@@ -156,6 +161,7 @@ class MultiPathVpnService : VpnService() {
 
     private fun stopVpn() {
         if (!isRunning.getAndSet(false)) return
+        isVpnActive = false
 
         vpnThread?.cancel()
         vpnThread = null
@@ -167,7 +173,9 @@ class MultiPathVpnService : VpnService() {
         tunInterface?.close()
         tunInterface = null
 
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {}
         onStatusChanged?.invoke("MultiPath VPN stopped")
     }
 

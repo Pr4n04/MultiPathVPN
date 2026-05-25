@@ -68,41 +68,42 @@ class NetworkMonitor(private val context: Context) {
     // ──────────────────────────────────────────────
 
     fun startMonitoring() {
-        stopMonitoring()
+        try {
+            stopMonitoring()
+            updateCurrentNetworkState()
 
-        // Query current state
-        updateCurrentNetworkState()
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
 
-        // Register for network changes
-        val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    updateCurrentNetworkState()
+                }
 
-        networkCallback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                updateCurrentNetworkState()
+                override fun onLost(network: Network) {
+                    updateCurrentNetworkState()
+                }
+
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    networkCapabilities: NetworkCapabilities
+                ) {
+                    trackNetwork(network, networkCapabilities)
+                }
+
+                override fun onLinkPropertiesChanged(
+                    network: Network,
+                    linkProperties: LinkProperties
+                ) {
+                    // Not needed for routing decisions
+                }
             }
 
-            override fun onLost(network: Network) {
-                updateCurrentNetworkState()
-            }
-
-            override fun onCapabilitiesChanged(
-                network: Network,
-                networkCapabilities: NetworkCapabilities
-            ) {
-                trackNetwork(network, networkCapabilities)
-            }
-
-            override fun onLinkPropertiesChanged(
-                network: Network,
-                linkProperties: LinkProperties
-            ) {
-                // Not needed for routing decisions
-            }
+            connectivityManager.registerNetworkCallback(request, networkCallback!!)
+        } catch (e: Exception) {
+            android.util.Log.e("NetworkMonitor", "Failed to start monitoring", e)
         }
-
-        connectivityManager.registerNetworkCallback(request, networkCallback!!)
     }
 
     fun stopMonitoring() {

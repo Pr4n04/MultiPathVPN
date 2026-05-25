@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
         strategySwitch.isChecked = true
 
         startStopButton.setOnClickListener {
-            if (isVpnRunning()) {
+            if (isServiceRunning()) {
                 stopVpn()
             } else {
                 requestVpnAndStart()
@@ -143,8 +143,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isVpnRunning(): Boolean {
-        // We check via a simple flag through the service
-        return false  // Will be updated by status receiver
+        return MultiPathVpnService.isVpnActive
     }
 
     // ──────────────────────────────────────────────
@@ -198,10 +197,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isServiceRunning(): Boolean {
-        val manager = getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
-        return manager?.getRunningServices(Integer.MAX_VALUE)
-            ?.any { it.service.className == MultiPathVpnService::class.java.name }
-            ?: false
+        return MultiPathVpnService.isVpnActive
     }
 
     private fun updateStrategy(strategy: NetworkMonitor.RoutingStrategy) {
