@@ -110,9 +110,15 @@ class MainActivity : AppCompatActivity() {
     private fun doStartService() {
         try {
             statusText.text = "Starting service..."
-            startService(Intent(this, MultiPathVpnService::class.java).apply {
+            val intent = Intent(this, MultiPathVpnService::class.java).apply {
                 action = MultiPathVpnService.ACTION_START
-            })
+            }
+            try {
+                startForegroundService(intent)
+            } catch (e: Exception) {
+                // Fallback for older/restricted devices
+                startService(intent)
+            }
             statusText.text = "Service start requested"
         } catch (e: Exception) {
             showError("StartService error: ${e::class.simpleName}: ${e.message}")
