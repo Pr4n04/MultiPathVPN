@@ -130,7 +130,13 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, MultiPathVpnService::class.java).apply {
             action = MultiPathVpnService.ACTION_START
         }
-        ContextCompat.startForegroundService(this, intent)
+        try {
+            ContextCompat.startForegroundService(this, intent)
+        } catch (e: Exception) {
+            // Android 14+ may block foreground service start
+            // Fallback to regular startService
+            startService(intent)
+        }
         statusText.text = "Starting..."
     }
 

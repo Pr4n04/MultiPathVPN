@@ -72,7 +72,12 @@ class MultiPathVpnService : VpnService() {
     // --- State ---
     private var tunInterface: ParcelFileDescriptor? = null
     private var vpnThread: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e("MultiPathVPN", "Unhandled coroutine crash", throwable)
+        lastError = "Coroutine crash: ${throwable.message}"
+        isVpnActive = false
+    }
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
 
     val isRunning = AtomicBoolean(false)
 
