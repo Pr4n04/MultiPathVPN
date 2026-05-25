@@ -1,223 +1,150 @@
 package com.multipathvpn
 
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.VpnService
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import com.google.android.material.switchmaterial.SwitchMaterial
+import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var statusText: TextView
-    private lateinit var startStopButton: Button
-    private lateinit var wifiStatusText: TextView
-    private lateinit var cellularStatusText: TextView
-    private lateinit var connectionCountText: TextView
-    private lateinit var strategySwitch: SwitchMaterial
+    private lateinit var toggleButton: Button
+    private lateinit var wifiText: TextView
+    private lateinit var cellText: TextView
+    private lateinit var errorText: TextView
+    private lateinit var errorCard: MaterialCardView
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private var statusUpdateJob: Job? = null
+    private var updateJob: Job? = null
 
-    // VPN permission launcher
-    private val vpnPermissionLauncher = registerForActivityResult(
+    private val permLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            startVpn()
-        } else {
-            statusText.text = "VPN permission denied"
+        try {
+            if (result.resultCode == RESULT_OK) {
+                doStartService()
+            } else {
+                statusText.text = "VPN permission denied"
+            }
+        } catch (e: Exception) {
+            showError("Callback crash: ${e::class.simpleName}: ${e.message}")
         }
     }
-
-    // Status update receiver
-    private val statusReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            updateUi()
-        }
-    }
-
-    // ──────────────────────────────────────────────
-    // Lifecycle
-    // ──────────────────────────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Install crash reporter (catches unhandled exceptions)
+        CrashReporter.install(applicationContext)
+
         setContentView(R.layout.activity_main)
 
-        // Bind views
         statusText = findViewById(R.id.status_text)
-        startStopButton = findViewById(R.id.start_stop_button)
-        wifiStatusText = findViewById(R.id.wifi_status)
-        cellularStatusText = findViewById(R.id.cellular_status)
-        connectionCountText = findViewById(R.id.connection_count)
-        strategySwitch = findViewById(R.id.strategy_switch)
+        toggleButton = findViewById(R.id.start_stop_button)
+        wifiText = findViewById(R.id.wifi_status)
+        cellText = findViewById(R.id.cellular_status)
+        errorText = findViewById(R.id.error_text)
+        errorCard = findViewById(R.id.error_card)
 
-        // Setup UI
-        strategySwitch.text = "Round Robin"
-        strategySwitch.isChecked = true
-
-        startStopButton.setOnClickListener {
-            if (isServiceRunning()) {
-                stopVpn()
-            } else {
-                requestVpnAndStart()
-            }
+        // Show any crash from a previous run
+        CrashReporter.getSavedCrash(this)?.let { crash ->
+            showError("Previous crash:\n$crash")
         }
 
-        strategySwitch.setOnCheckedChangeListener { _, isChecked ->
-            val strategy = if (isChecked) {
-                NetworkMonitor.RoutingStrategy.ROUND_ROBIN
-            } else {
-                NetworkMonitor.RoutingStrategy.WIFI_PREFERRED
+        toggleButton.setOnClickListener {
+            errorCard.visibility = View.GONE
+            try {
+                if (MultiPathVpnService.isVpnActive) {
+                    statusText.text = "Stopping VPN..."
+                    stopService(Intent(this, MultiPathVpnService::class.java))
+                } else {
+                    statusText.text = "Preparing VPN..."
+                    val intent = VpnService.prepare(this)
+                    if (intent != null) {
+                        statusText.text = "Requesting permission..."
+                        permLauncher.launch(intent)
+                    } else {
+                        statusText.text = "Permission already granted, starting..."
+                        doStartService()
+                    }
+                }
+            } catch (e: Exception) {
+                showError("Button crash: ${e::class.simpleName}: ${e.message}")
             }
-            // Update strategy via the service
-            updateStrategy(strategy)
         }
-
-        // Register status receiver
-        registerReceiver(
-            statusReceiver,
-            IntentFilter("com.multipathvpn.STATUS_UPDATE"),
-            ContextCompat.RECEIVER_EXPORTED
-        )
-
-        // Initial UI update
-        updateUi()
     }
 
     override fun onResume() {
         super.onResume()
-        startStatusUpdates()
+        updateJob = scope.launch {
+            while (isActive) {
+                updateUi()
+                delay(1000)
+            }
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        stopStatusUpdates()
+        updateJob?.cancel()
     }
 
     override fun onDestroy() {
-        stopStatusUpdates()
-        unregisterReceiver(statusReceiver)
         scope.cancel()
         super.onDestroy()
     }
 
-    // ──────────────────────────────────────────────
-    // VPN Start/Stop
-    // ──────────────────────────────────────────────
-
-    private fun requestVpnAndStart() {
-        val intent = VpnService.prepare(this)
-        if (intent != null) {
-            // Need to request VPN permission from user
-            vpnPermissionLauncher.launch(intent)
-        } else {
-            // Already have permission
-            startVpn()
-        }
+    private fun showError(msg: String) {
+        errorText.text = msg
+        errorCard.visibility = View.VISIBLE
     }
 
-    private fun startVpn() {
-        val intent = Intent(this, MultiPathVpnService::class.java).apply {
-            action = MultiPathVpnService.ACTION_START
-        }
+    private fun doStartService() {
         try {
-            ContextCompat.startForegroundService(this, intent)
+            statusText.text = "Starting service..."
+            startService(Intent(this, MultiPathVpnService::class.java).apply {
+                action = MultiPathVpnService.ACTION_START
+            })
+            statusText.text = "Service start requested"
         } catch (e: Exception) {
-            // Android 14+ may block foreground service start
-            // Fallback to regular startService
-            startService(intent)
+            showError("StartService error: ${e::class.simpleName}: ${e.message}")
         }
-        statusText.text = "Starting..."
-    }
-
-    private fun stopVpn() {
-        val intent = Intent(this, MultiPathVpnService::class.java).apply {
-            action = MultiPathVpnService.ACTION_STOP
-        }
-        startService(intent)
-        statusText.text = "Stopping..."
-    }
-
-    private fun isVpnRunning(): Boolean {
-        return MultiPathVpnService.isVpnActive
-    }
-
-    // ──────────────────────────────────────────────
-    // UI Updates
-    // ──────────────────────────────────────────────
-
-    private fun startStatusUpdates() {
-        statusUpdateJob = scope.launch {
-            while (isActive) {
-                updateUi()
-                delay(1000)  // Update every second
-            }
-        }
-    }
-
-    private fun stopStatusUpdates() {
-        statusUpdateJob?.cancel()
-        statusUpdateJob = null
     }
 
     private fun updateUi() {
-        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+            val wifi = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+            val cell = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) == true
 
-        // Check current network state
-        val activeNetwork = cm.activeNetwork
-        val caps = activeNetwork?.let { cm.getNetworkCapabilities(it) }
+            wifiText.text = if (wifi) "WiFi: ✅" else "WiFi: ❌"
+            cellText.text = if (cell) "Cellular: ✅" else "Cellular: ❌"
 
-        val wifiConnected = caps?.hasTransport(
-            android.net.NetworkCapabilities.TRANSPORT_WIFI
-        ) == true
+            val active = MultiPathVpnService.isVpnActive
+            val error = MultiPathVpnService.lastError
 
-        val cellularConnected = caps?.hasTransport(
-            android.net.NetworkCapabilities.TRANSPORT_CELLULAR
-        ) == true
+            toggleButton.text = if (active) "STOP VPN" else "START VPN"
 
-        wifiStatusText.text = if (wifiConnected) "WiFi: ✅ Connected" else "WiFi: ❌ Not connected"
-        cellularStatusText.text = if (cellularConnected) "Cellular: ✅ Connected" else "Cellular: ❌ Not connected"
+            when {
+                error != null && !active -> statusText.text = "SERVICE ERROR: $error"
 
-        val running = isServiceRunning()
-        val lastError = MultiPathVpnService.lastError
-
-        startStopButton.text = if (running) "STOP VPN" else "START VPN"
-
-        statusText.text = when {
-            lastError != null && !running -> {
-                "MultiPath VPN ERROR\n$lastError\nTap START to retry"
+                active -> {
+                    if (statusText.text != "VPN is ACTIVE") {
+                        statusText.text = "VPN is ACTIVE"
+                    }
+                }
             }
-            running -> {
-                "MultiPath VPN is ACTIVE\n" +
-                "Using: ${if (wifiConnected) "WiFi" else ""}" +
-                "${if (wifiConnected && cellularConnected) " + " else ""}" +
-                "${if (cellularConnected) "Cellular" else ""}"
-            }
-            else -> {
-                "MultiPath VPN is stopped\nTap START to begin"
-            }
+        } catch (e: Exception) {
+            showError("UI update error: ${e.message}")
         }
-    }
-
-    private fun isServiceRunning(): Boolean {
-        return MultiPathVpnService.isVpnActive
-    }
-
-    private fun updateStrategy(strategy: NetworkMonitor.RoutingStrategy) {
-        // This would communicate with the service via a bound service or broadcast
-        val intent = Intent("com.multipathvpn.UPDATE_STRATEGY").apply {
-            putExtra("strategy", strategy.name)
-        }
-        sendBroadcast(intent)
     }
 }
