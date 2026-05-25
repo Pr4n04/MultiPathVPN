@@ -11,10 +11,13 @@ import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.nio.ByteBuffer
@@ -60,6 +63,10 @@ class MultiPathVpnService : VpnService() {
         const val VPN_IP = "10.88.0.2"
         const val VPN_NETMASK = 24
         const val VPN_NETWORK = "10.88.0.0"
+
+        // Store last error for UI to read
+        @Volatile
+        var lastError: String? = null
     }
 
     // --- State ---
@@ -107,55 +114,62 @@ class MultiPathVpnService : VpnService() {
     // ──────────────────────────────────────────────
 
     private fun startVpn() {
+        Log.d("MultiPathVPN", "startVpn() called")
+        lastError = null
         try {
-            if (isRunning.get()) return
+            if (isRunning.get()) {
+                Log.d("MultiPathVPN", "Already running, ignoring")
+                return
+            }
 
+            Log.d("MultiPathVPN", "Creating VPN builder")
             val builder = Builder()
 
-            // Configure the VPN interface
             builder.setSession(VPN_SESSION_NAME)
             builder.setMtu(VPN_MTU)
             builder.setBlocking(true)
 
-            // Add virtual address
             builder.addAddress(VPN_IP, VPN_NETMASK)
-
-            // Add DNS servers
             DNS_SERVERS.forEach { builder.addDnsServer(it) }
-
-            // Route ALL traffic through the VPN
             builder.addRoute("0.0.0.0", 0)
 
-            // Establish the VPN interface
-            tunInterface = builder.establish() ?: run {
-                onStatusChanged?.invoke("ERROR: Failed to establish VPN interface")
+            Log.d("MultiPathVPN", "Calling builder.establish()")
+            tunInterface = builder.establish()
+            if (tunInterface == null) {
+                val msg = "VPN establish returned null — permission not granted?"
+                Log.e("MultiPathVPN", msg)
+                lastError = msg
+                onStatusChanged?.invoke("ERROR: $msg")
                 return
             }
 
             isRunning.set(true)
             isVpnActive = true
-            onStatusChanged?.invoke("VPN interface established ✓")
+            Log.d("MultiPathVPN", "VPN interface established OK")
 
-            // Start foreground service notification
+            Log.d("MultiPathVPN", "Starting foreground notification")
             startForeground(FOREGROUND_NOTIFICATION_ID, createNotification())
 
-            // Start monitoring networks
+            Log.d("MultiPathVPN", "Starting network monitor")
             networkMonitor.startMonitoring()
 
-            // Start the main packet forwarding loop
+            Log.d("MultiPathVPN", "Starting packet loop")
             startPacketLoop()
 
+            Log.d("MultiPathVPN", "MultiPath VPN is RUNNING")
             onStatusChanged?.invoke("MultiPath VPN is RUNNING")
             onStatusChanged?.invoke("WiFi: ${networkMonitor.isWifiConnected.get()} | Cellular: ${networkMonitor.isCellularConnected.get()}")
         } catch (e: Exception) {
-            e.printStackTrace()
-            onStatusChanged?.invoke("ERROR: ${e.message ?: "Unknown error"}")
-            // Clean up if we partially started
-            if (isRunning.get()) {
-                stopVpn()
-            }
-            tunInterface?.close()
+            val sw = StringWriter()
+            e.printStackTrace(PrintWriter(sw))
+            val stacktrace = sw.toString()
+            Log.e("MultiPathVPN", "startVpn() crashed:\n$stacktrace")
+            lastError = "${e::class.simpleName}: ${e.message}"
+            // Clean up
+            try { if (isRunning.get()) stopVpn() } catch (_: Exception) {}
+            try { tunInterface?.close() } catch (_: Exception) {}
             tunInterface = null
+            isVpnActive = false
         }
     }
 

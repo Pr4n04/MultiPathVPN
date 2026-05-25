@@ -182,17 +182,24 @@ class MainActivity : AppCompatActivity() {
         wifiStatusText.text = if (wifiConnected) "WiFi: ✅ Connected" else "WiFi: ❌ Not connected"
         cellularStatusText.text = if (cellularConnected) "Cellular: ✅ Connected" else "Cellular: ❌ Not connected"
 
-        // Simpler connection tracking (we'd need a bound service for accurate count)
-        connectionCountText.text = "Status: ${if (wifiConnected || cellularConnected) "Ready" else "No internet"}"
+        val running = isServiceRunning()
+        val lastError = MultiPathVpnService.lastError
 
-        startStopButton.text = if (isServiceRunning()) "STOP VPN" else "START VPN"
-        statusText.text = if (isServiceRunning()) {
-            "MultiPath VPN is ACTIVE\n" +
-            "Using: ${if (wifiConnected) "WiFi" else ""}" +
-            "${if (wifiConnected && cellularConnected) " + " else ""}" +
-            "${if (cellularConnected) "Cellular" else ""}"
-        } else {
-            "MultiPath VPN is stopped\nTap START to begin"
+        startStopButton.text = if (running) "STOP VPN" else "START VPN"
+
+        statusText.text = when {
+            lastError != null && !running -> {
+                "MultiPath VPN ERROR\n$lastError\nTap START to retry"
+            }
+            running -> {
+                "MultiPath VPN is ACTIVE\n" +
+                "Using: ${if (wifiConnected) "WiFi" else ""}" +
+                "${if (wifiConnected && cellularConnected) " + " else ""}" +
+                "${if (cellularConnected) "Cellular" else ""}"
+            }
+            else -> {
+                "MultiPath VPN is stopped\nTap START to begin"
+            }
         }
     }
 
